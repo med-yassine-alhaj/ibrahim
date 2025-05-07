@@ -6,62 +6,62 @@
 #include <SDL/SDL_ttf.h>
 #include "enemy.h"
 
-// Hadi énumération t3 l'états t3 l'héros
+// États du héros
 enum HeroState {
-    HERO_ATTACK, // État t3 l'attaque
-    HERO_DEATH,  // État t3 l'mort
-    HERO_FALL,   // État t3 l'tombée
-    HERO_HIT,    // État t3 l'coup reçu
-    HERO_IDLE,   // État t3 l'repos
-    HERO_JUMP,   // État t3 l'saut
-    HERO_RUN,    // État t3 l'course
-    HERO_WALK    // État t3 l'marche
+    HERO_ATTACK, // État d'attaque
+    HERO_DEATH,  // État de mort
+    HERO_FALL,   // État de tombée
+    HERO_HIT,    // État de coup reçu
+    HERO_IDLE,   // État de repos
+    HERO_JUMP,   // État de saut
+    HERO_RUN,    // État de course
+    HERO_WALK    // État de marche
 };
 
-
-
-// Hadi structure t3 l'héros
+// Structure pour le texte
 typedef struct {
-    float x, y;              // Position t3 l'héros (x horizontal, y vertical)
-    int direction;           // Direction t3 l'héros (1 droite, -1 gauche)
-    enum HeroState state;    // État courant t3 l'héros (mn l'enum)
-    int health;              // Santé actuelle t3 l'héros
-    int maxHealth;           // Santé maximale t3 l'héros
-    float moveSpeed;         // Vitesse t3 l'mouvement
-    Animation animations[8]; // Tableau t3 8 animations (wa7da l'kol état)
-    SDL_Surface *flippedSpriteSheet; // Image t3 l'héros m3aksa (flipped)
-    SDL_Rect rect;           // Rectangle t3 l'héros (position w taille)
-    int currentFrame;        // Frame courante fi l'animation
-    Uint32 frameTimer;       // Temps t3 l'frame (bch nbdlou l'frames)
-    Uint32 frameDelay;       // Délai bin l'frames
-    int isJumping;           // 1 ken l'héros ysauter, 0 sinon
-    float jumpVelocity;      // Vitesse t3 l'saut
-    float gravity;           // Gravité bch l'héros yrj3 lt7t
-    int isAttacking;         // 1 ken l'héros y3ml attaque, 0 sinon
-    Uint32 lastUpdateTime;   // Dernier temps t3 mise à jour
-    int flip;                // 1 ken l'héros m3aks, 0 sinon
-    int animationPlaying;    // 1 ken l'animation t3ml, 0 sinon
-    int attackDamage;        // Quantité t3 l'dégât t3 l'attaque
+    SDL_Surface *txt;
+    SDL_Rect pos_txt;
+    SDL_Color color_txt;
+    TTF_Font *police;
+} texte;
+
+// Structure du héros
+typedef struct {
+    float x, y;              // Position du héros
+    int direction;           // Direction (1 droite, -1 gauche)
+    enum HeroState state;    // État courant
+    int health;              // Santé actuelle
+    int maxHealth;           // Santé maximale
+    float moveSpeed;         // Vitesse de mouvement
+    float acceleration;      // Accélération
+    SDL_Surface *img_per[6]; // Sprites du héros
+    SDL_Surface *img_vie;    // Image de la barre de vie
+    SDL_Rect pos_vie_affiche;// Rectangle pour l'affichage de la vie
+    SDL_Rect pos_vie_ecran;  // Position de la barre de vie
+    texte tscore;            // Texte du score
+    char sc[20];             // Chaîne pour le score
+    int score;               // Score actuel
+    int frame;               // Frame courante
+    int isJumping;           // État du saut
+    float jumpVelocity;      // Vitesse du saut
+    float gravity;           // Gravité
+    int isAttacking;         // État de l'attaque
+    Uint32 lastUpdateTime;   // Dernier temps de mise à jour
+    Uint32 frameTimer;       // Timer pour les frames
+    Uint32 frameDelay;       // Délai entre les frames
+    int attackDamage;        // Dégâts d'attaque
     Uint32 lastHitTime;      // Temps du dernier coup reçu
+    SDL_Rect rect;           // Rectangle de collision
 } Hero;
 
-// Fonction bch nbdaw l'héros
+// Fonctions du héros
 void InitHero(Hero *hero, int startX);
-// hero: pointeur 3la l'héros
-// startX: position initiale x
-
-// Fonction bch nmajiw l'héros
 void UpdateHero(Hero *hero, const Uint8 *keys);
-// hero: pointeur 3la l'héros
-// keys: tableau t3 l'touches pressées
-
-// Fonction bch nrsmou l'héros
 void RenderHero(SDL_Surface *screen, Hero *hero);
-// screen: l'écran
-// hero: pointeur 3la l'héros
-
-// Fonction bch n7rru l'héros
 void FreeHero(Hero *hero);
-// hero: pointeur 3la l'héros
+void saut(Hero *hero);
+void augmenter_vitesse(Hero *hero);
+void diminuer_vitesse(Hero *hero);
 
 #endif

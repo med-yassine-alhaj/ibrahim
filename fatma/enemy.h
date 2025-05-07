@@ -45,6 +45,7 @@ typedef struct {
     Uint32 attackTimer;    // Timer pour gérer les pauses entre les attaques
     int attackPhase;       // Phase de l'attaque (0: idle, 1: attack, 2: retreat)
     float attackDistance;  // Distance à partir de laquelle l'ennemi attaque
+    int rank;              // Rang de l'ennemi (1 ou 2)
 } Enemy2;
 
 SDL_Surface* ResizeSurface(SDL_Surface *src, float scale);

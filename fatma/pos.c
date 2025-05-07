@@ -2,8 +2,8 @@
 #include "config.h"
 #include <SDL/SDL.h>
 
-#define HERO_Y    270
-#define ENEMY1_Y  450
+#define HERO_Y    500
+#define ENEMY1_Y  500
 #define ENEMY2_Y  500
 #define COIN_Y    370
 

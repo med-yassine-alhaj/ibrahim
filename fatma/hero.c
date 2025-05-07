@@ -9,7 +9,9 @@
 #define SCREEN_WIDTH 1700
 #define SCREEN_HEIGHT 900
 #define FRAME_DELAY 100
-#define HIT_DURATION 500 // Durée minimale de l'animation HIT en ms
+#define HIT_DURATION 500
+#define HERO_WIDTH 100
+#define HERO_HEIGHT 100
 
 void InitHero(Hero *hero, int startX) {
     if (!hero) {
@@ -17,6 +19,8 @@ void InitHero(Hero *hero, int startX) {
         exit(EXIT_FAILURE);
     }
     memset(hero, 0, sizeof(Hero));
+    
+    // Initialisation des positions et états
     hero->x = startX;
     hero->y = getHeroY();
     hero->direction = 1;
@@ -24,6 +28,7 @@ void InitHero(Hero *hero, int startX) {
     hero->health = 1600;
     hero->maxHealth = 1600;
     hero->moveSpeed = 8.0f;
+    hero->acceleration = 5.0f;
     hero->frameDelay = FRAME_DELAY;
     hero->isJumping = 0;
     hero->jumpVelocity = -15.0f;
@@ -32,43 +37,47 @@ void InitHero(Hero *hero, int startX) {
     hero->frameTimer = SDL_GetTicks();
     hero->lastUpdateTime = SDL_GetTicks();
     hero->lastHitTime = 0;
-    hero->flip = 0;
-    hero->animationPlaying = 0;
     hero->attackDamage = 20;
+    hero->score = 0;
 
-    printf("DEBUG: Initialisation Hero à (%d, %f)\n", startX, hero->y);
-
-    // Créer un carré blanc de 400x400 pixels
-    SDL_Surface *whiteSquare = SDL_CreateRGBSurface(0, 400, 400, 32, 0, 0, 0, 0);
-    if (!whiteSquare) {
-        printf("ERREUR: SDL_CreateRGBSurface\n");
-        exit(EXIT_FAILURE);
-    }
-    SDL_FillRect(whiteSquare, NULL, SDL_MapRGB(whiteSquare->format, 255, 255, 255));
-
-    for (int i = 0; i < 8; i++) {
-        hero->animations[i].spriteSheet = whiteSquare;
-        hero->animations[i].totalFrames = 1;
-        hero->animations[i].frames = malloc(sizeof(SDL_Rect) * 1);
-        if (!hero->animations[i].frames) {
-            printf("ERREUR: Allocation mémoire échouée pour hero->animations[%d].frames\n", i);
-            SDL_FreeSurface(whiteSquare);
-            for (int j = 0; j < i; j++) {
-                free(hero->animations[j].frames);
-            }
+    // Chargement des sprites du héros
+    char filename[30];
+    for (int i = 0; i < 6; i++) {
+        sprintf(filename, "fatma/assets/hero/perso%d.png", i + 11);
+        hero->img_per[i] = IMG_Load(filename);
+        if (hero->img_per[i] == NULL) {
+            printf("Erreur de chargement %s : %s\n", filename, SDL_GetError());
             exit(EXIT_FAILURE);
         }
-        hero->animations[i].frames[0].x = 0;
-        hero->animations[i].frames[0].y = 0;
-        hero->animations[i].frames[0].w = 400;
-        hero->animations[i].frames[0].h = 400;
     }
 
-    // Pas besoin de flippedSpriteSheet car le carré est symétrique
-    hero->flippedSpriteSheet = NULL;
+    // Initialisation de la barre de vie
+    hero->img_vie = IMG_Load("fatma/assets/hero/vie.png");
+    if (hero->img_vie == NULL) {
+        printf("Erreur chargement image vie : %s\n", SDL_GetError());
+        exit(EXIT_FAILURE);
+    }
+    hero->pos_vie_affiche.x = 0;
+    hero->pos_vie_affiche.y = 0;
+    hero->pos_vie_affiche.h = 50;
+    hero->pos_vie_affiche.w = 180;
+    hero->pos_vie_ecran.x = 10;
+    hero->pos_vie_ecran.y = 10;
 
-    hero->rect.w = 400;
-    hero->rect.h = 400;
+    // Initialisation du texte du score
+    hero->tscore.police = TTF_OpenFont("fatma/assets/hero/HIROMISAKE.ttf", 35);
+    if (!hero->tscore.police) {
+        printf("Erreur chargement police : %s\n", TTF_GetError());
+        exit(EXIT_FAILURE);
+    }
+    hero->tscore.color_txt.r = 255;
+    hero->tscore.color_txt.g = 0;
+    hero->tscore.color_txt.b = 0;
+    hero->tscore.pos_txt.y = 10;
+
+    // Initialisation du rectangle de collision
+    hero->rect.w = HERO_WIDTH;
+    hero->rect.h = HERO_HEIGHT;
     hero->rect.x = startX;
     hero->rect.y = hero->y;
 
@@ -92,76 +101,59 @@ void UpdateHero(Hero *hero, const Uint8 *keys) {
     enum HeroState previousState = hero->state;
     static Uint32 lastAttackTime = 0;
 
+    // Gestion de l'état HIT
     if (hero->state == HERO_HIT && now - hero->lastHitTime < HIT_DURATION) {
-        // Verrouiller l'état HIT jusqu'à ce que la durée minimale soit écoulée
-        if (hero->animationPlaying && hero->currentFrame >= hero->animations[HERO_HIT].totalFrames - 1) {
-            hero->currentFrame = 0; // Boucler l'animation HIT
-        }
+        if (hero->frame >= 5) hero->frame = 0;
     } else if (hero->state == HERO_HIT) {
-        hero->animationPlaying = 0;
         hero->state = HERO_IDLE;
-        hero->currentFrame = 0;
-    } else if (keys[SDLK_a] && now - lastAttackTime >= 500 && !hero->animationPlaying) {
+        hero->frame = 0;
+    }
+    // Gestion de l'attaque
+    else if (keys[SDLK_a] && now - lastAttackTime >= 500) {
         hero->state = HERO_ATTACK;
         hero->isAttacking = 1;
-        hero->currentFrame = 0;
-        hero->animationPlaying = 1;
+        hero->frame = 0;
         lastAttackTime = now;
-    } else if (hero->animationPlaying) {
-        if (hero->currentFrame >= hero->animations[hero->state].totalFrames - 1) {
-            hero->animationPlaying = 0;
-            if (hero->state == HERO_ATTACK) {
-                hero->isAttacking = 0;
-                hero->state = HERO_IDLE;
-            } else if (hero->state == HERO_DEATH) {
-                return;
-            }
-            hero->currentFrame = 0;
-        }
     }
-
-    if (!hero->animationPlaying && hero->state != HERO_DEATH) {
-        if (hero->health <= 0) {
-            hero->state = HERO_DEATH;
-            hero->currentFrame = 0;
-            hero->animationPlaying = 1;
+    // Gestion de la mort
+    else if (hero->health <= 0) {
+        hero->state = HERO_DEATH;
+        hero->frame = 0;
+    }
+    // Gestion du mouvement normal
+    else {
+        if (keys[SDLK_j] && !hero->isJumping) {
+            hero->state = HERO_JUMP;
+            hero->isJumping = 1;
+            hero->jumpVelocity = -15.0f;
+            hero->frame = 0;
+        } else if (keys[SDLK_SPACE] && keys[SDLK_RIGHT]) {
+            hero->state = HERO_RUN;
+            hero->direction = 1;
+            hero->x += hero->moveSpeed * speedFactor * 1.5f;
+            if (previousState != HERO_RUN) hero->frame = 0;
+        } else if (keys[SDLK_SPACE] && keys[SDLK_LEFT]) {
+            hero->state = HERO_RUN;
+            hero->direction = -1;
+            hero->x -= hero->moveSpeed * speedFactor * 1.5f;
+            if (previousState != HERO_RUN) hero->frame = 0;
+        } else if (keys[SDLK_RIGHT]) {
+            hero->state = HERO_WALK;
+            hero->direction = 1;
+            hero->x += hero->moveSpeed * speedFactor;
+            if (previousState != HERO_WALK) hero->frame = 0;
+        } else if (keys[SDLK_LEFT]) {
+            hero->state = HERO_WALK;
+            hero->direction = -1;
+            hero->x -= hero->moveSpeed * speedFactor;
+            if (previousState != HERO_WALK) hero->frame = 0;
         } else {
-            if (keys[SDLK_j] && !hero->isJumping) {
-                hero->state = HERO_JUMP;
-                hero->isJumping = 1;
-                hero->jumpVelocity = -15.0f;
-                hero->currentFrame = 0;
-            } else if (keys[SDLK_SPACE] && keys[SDLK_RIGHT]) {
-                hero->state = HERO_RUN;
-                hero->direction = 1;
-                hero->flip = 0;
-                hero->x += hero->moveSpeed * speedFactor * 1.5f;
-                if (previousState != HERO_RUN) hero->currentFrame = 0;
-            } else if (keys[SDLK_SPACE] && keys[SDLK_LEFT]) {
-                hero->state = HERO_RUN;
-                hero->direction = -1;
-                hero->flip = 1;
-                hero->x -= hero->moveSpeed * speedFactor * 1.5f;
-                if (previousState != HERO_RUN) hero->currentFrame = 0;
-            } else if (keys[SDLK_RIGHT]) {
-                hero->state = HERO_WALK;
-                hero->direction = 1;
-                hero->flip = 0;
-                hero->x += hero->moveSpeed * speedFactor;
-                if (previousState != HERO_WALK) hero->currentFrame = 0;
-            } else if (keys[SDLK_LEFT]) {
-                hero->state = HERO_WALK;
-                hero->direction = -1;
-                hero->flip = 1;
-                hero->x -= hero->moveSpeed * speedFactor;
-                if (previousState != HERO_WALK) hero->currentFrame = 0;
-            } else {
-                hero->state = HERO_IDLE;
-                if (previousState != HERO_IDLE) hero->currentFrame = 0;
-            }
+            hero->state = HERO_IDLE;
+            if (previousState != HERO_IDLE) hero->frame = 0;
         }
     }
 
+    // Gestion du saut
     if (hero->isJumping) {
         hero->y += hero->jumpVelocity * speedFactor;
         hero->jumpVelocity += hero->gravity * speedFactor;
@@ -169,26 +161,29 @@ void UpdateHero(Hero *hero, const Uint8 *keys) {
             hero->y = getHeroY();
             hero->isJumping = 0;
             hero->state = HERO_IDLE;
-            hero->currentFrame = 0;
+            hero->frame = 0;
         } else if (hero->jumpVelocity > 0) {
             hero->state = HERO_FALL;
-            if (previousState != HERO_FALL) hero->currentFrame = 0;
+            if (previousState != HERO_FALL) hero->frame = 0;
         }
     }
 
+    // Limites de l'écran
     if (hero->x < 0) hero->x = 0;
     if (hero->x > SCREEN_WIDTH - hero->rect.w) hero->x = SCREEN_WIDTH - hero->rect.w;
     if (hero->y < 0) hero->y = 0;
     if (hero->y > SCREEN_HEIGHT - hero->rect.h) hero->y = SCREEN_HEIGHT - hero->rect.h;
 
+    // Mise à jour du rectangle de collision
     hero->rect.x = (int)hero->x;
     hero->rect.y = (int)hero->y;
+    hero->rect.w = HERO_WIDTH;
+    hero->rect.h = HERO_HEIGHT;
 
-    if (hero->animations[hero->state].totalFrames > 0 && now - hero->frameTimer >= hero->frameDelay) {
-        hero->currentFrame++;
-        if (hero->currentFrame >= hero->animations[hero->state].totalFrames) {
-            hero->currentFrame = 0;
-        }
+    // Animation
+    if (now - hero->frameTimer >= hero->frameDelay) {
+        hero->frame++;
+        if (hero->frame >= 6) hero->frame = 0;
         hero->frameTimer = now;
     }
 
@@ -200,26 +195,19 @@ void RenderHero(SDL_Surface *screen, Hero *hero) {
         printf("ERREUR: Pointeur Hero NULL dans RenderHero\n");
         return;
     }
-    Animation *anim = &hero->animations[hero->state];
-    if (anim->totalFrames <= 0) {
-        printf("ERREUR: Aucune frame pour l'état %d dans RenderHero\n", hero->state);
-        return;
-    }
-    int frameIndex = hero->currentFrame % anim->totalFrames;
-    SDL_Rect src = anim->frames[frameIndex];
+
+    // Affichage du héros
     SDL_Rect dst = {hero->rect.x, hero->rect.y, 0, 0};
+    SDL_BlitSurface(hero->img_per[hero->frame], NULL, screen, &dst);
 
-    if (hero->state == HERO_HIT) {
-        printf("DEBUG: RenderHero HERO_HIT, frame=%d, src=(%d,%d,%d,%d), dst=(%d,%d)\n",
-               frameIndex, src.x, src.y, src.w, src.h, dst.x, dst.y);
-    }
+    // Affichage de la barre de vie
+    SDL_BlitSurface(hero->img_vie, &hero->pos_vie_affiche, screen, &hero->pos_vie_ecran);
 
-    SDL_Surface *currentSheet = anim->spriteSheet;
-    if (!currentSheet) {
-        printf("ERREUR: SpriteSheet NULL pour état %d dans RenderHero\n", hero->state);
-        return;
-    }
-    SDL_BlitSurface(currentSheet, &src, screen, &dst);
+    // Affichage du score
+    sprintf(hero->sc, "Score : %d", hero->score);
+    hero->tscore.txt = TTF_RenderText_Blended(hero->tscore.police, hero->sc, hero->tscore.color_txt);
+    hero->tscore.pos_txt.x = 1200;
+    SDL_BlitSurface(hero->tscore.txt, NULL, screen, &hero->tscore.pos_txt);
 }
 
 void FreeHero(Hero *hero) {
@@ -227,14 +215,47 @@ void FreeHero(Hero *hero) {
         printf("ERREUR: Pointeur Hero NULL dans FreeHero\n");
         return;
     }
-    if (hero->animations[0].spriteSheet) {
-        SDL_FreeSurface(hero->animations[0].spriteSheet);
-        hero->animations[0].spriteSheet = NULL;
-    }
-    for (int i = 0; i < 8; i++) {
-        if (hero->animations[i].frames) {
-            free(hero->animations[i].frames);
-            hero->animations[i].frames = NULL;
+
+    // Libération des sprites
+    for (int i = 0; i < 6; i++) {
+        if (hero->img_per[i]) {
+            SDL_FreeSurface(hero->img_per[i]);
+            hero->img_per[i] = NULL;
         }
     }
+
+    // Libération de la barre de vie
+    if (hero->img_vie) {
+        SDL_FreeSurface(hero->img_vie);
+        hero->img_vie = NULL;
+    }
+
+    // Libération du texte
+    if (hero->tscore.txt) {
+        SDL_FreeSurface(hero->tscore.txt);
+        hero->tscore.txt = NULL;
+    }
+    if (hero->tscore.police) {
+        TTF_CloseFont(hero->tscore.police);
+        hero->tscore.police = NULL;
+    }
+}
+
+void saut(Hero *hero) {
+    if (!hero->isJumping) {
+        hero->state = HERO_JUMP;
+        hero->isJumping = 1;
+        hero->jumpVelocity = -15.0f;
+        hero->frame = 0;
+    }
+}
+
+void augmenter_vitesse(Hero *hero) {
+    hero->moveSpeed += hero->acceleration;
+    if (hero->moveSpeed >= 40)
+        hero->moveSpeed = 40;
+}
+
+void diminuer_vitesse(Hero *hero) {
+    hero->moveSpeed = 8.0f;
 }

@@ -50,8 +50,10 @@ void InitEnemy2(Enemy2 *e, const char *spriteSheetPath, int frameWidth, int fram
     e->enemyType = enemyType;
     e->direction = -1;
     e->state = ENEMY2_IDLE;
-    e->health = maxHealth;
-    e->maxHealth = maxHealth;
+    e->rank = enemyType + 1; // Rang 1 pour enemy1, rang 2 pour enemy2
+    // Ajuster la santé en fonction du rang
+    e->maxHealth = (e->rank == 1) ? maxHealth / 2 : maxHealth * 2;
+    e->health = e->maxHealth;
     e->moveSpeed = moveSpeed;
     e->leftBoundary = leftBoundary;
     e->rightBoundary = rightBoundary;
@@ -72,7 +74,7 @@ void InitEnemy2(Enemy2 *e, const char *spriteSheetPath, int frameWidth, int fram
     e->attackPhase = 0;
     e->attackDistance = attackDistance;
 
-    printf("DEBUG: Initialisation Enemy2 à (%f, %f) avec %d états, santé %d\n", e->x, e->y, numStates, maxHealth);
+    printf("DEBUG: Initialisation Enemy2 à (%f, %f) avec %d états, santé %d, rang %d\n", e->x, e->y, numStates, e->maxHealth, e->rank);
 
     SDL_Surface *img = IMG_Load(spriteSheetPath);
     if (!img) {

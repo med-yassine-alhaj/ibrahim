@@ -6,7 +6,10 @@
 
 #define SCREEN_WIDTH 1700
 #define SCREEN_HEIGHT 900
-#define INVINCIBILITY_DURATION 1000 // 1 seconde d'invincibilité après un coup
+#define INVINCIBILITY_DURATION 2000 // 2 secondes d'invincibilité après un coup
+#define HERO_WIDTH 100
+#define HERO_HEIGHT 100
+#define BASE_ENEMY_DAMAGE 5 // Dégâts de base pour un ennemi de rang 1
 
 extern int activeCoins;
 
@@ -107,8 +110,8 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
     for (int i = 0; i < numEnemies; i++) {
         if (enemies[i].active && enemies[i].health > 0) {
             SDL_Rect heroCollisionRect = {
-                hero->rect.x + 25, hero->rect.y + 25,
-                hero->rect.w - 50, hero->rect.h - 50 // 300x300 -> 250x250
+                hero->rect.x + 10, hero->rect.y + 10,
+                HERO_WIDTH - 20, HERO_HEIGHT - 20 // Reduced collision box for better gameplay
             };
             SDL_Rect enemyCollisionRect = {
                 enemies[i].rect.x + 10, enemies[i].rect.y + 10,
@@ -122,7 +125,12 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
             if (RectIntersect(heroCollisionRect, enemyCollisionRect)) {
                 printf("DEBUG: Collision détectée entre héros et ennemi %d\n", i);
                 if (hero->isAttacking && hero->state == HERO_ATTACK) {
-                    enemies[i].health -= hero->attackDamage;
+                    // Réduire les dégâts en fonction du rang de l'ennemi
+                    int damage = hero->attackDamage;
+                    if (enemies[i].rank == 2) {
+                        damage = damage / 2; // Le deuxième ennemi prend la moitié des dégâts
+                    }
+                    enemies[i].health -= damage;
                     printf("DEBUG: Ennemi %d touché, santé = %d\n", i, enemies[i].health);
                     if (enemies[i].health <= 0) {
                         enemies[i].state = ENEMY2_DEATH;
@@ -142,16 +150,18 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
                     effect->frameTimer = now;
                 }
                 else if (enemies[i].state == ENEMY2_ATTACK && now - hero->lastHitTime >= INVINCIBILITY_DURATION) {
-                    hero->health -= 10;
+                    // Calculer les dégâts en fonction du rang de l'ennemi
+                    int damage = BASE_ENEMY_DAMAGE * enemies[i].rank;
+                    hero->health -= damage;
                     hero->lastHitTime = now;
-                    printf("DEBUG: Héros touché, santé = %d\n", hero->health);
+                    printf("DEBUG: Héros touché par ennemi rang %d, dégâts = %d, santé = %d\n", 
+                           enemies[i].rank, damage, hero->health);
                     if (hero->health <= 0) {
                         hero->state = HERO_DEATH;
-                        hero->animationPlaying = 1;
+                        hero->frame = 0;
                     } else if (hero->state != HERO_HIT) {
                         hero->state = HERO_HIT;
-                        hero->animationPlaying = 1;
-                        hero->currentFrame = 0;
+                        hero->frame = 0;
                     }
                     hero->frameTimer = now;
                     effect->currentAnimation = rand() % 3;
@@ -169,8 +179,8 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
     for (int i = 0; i < numCoins; i++) {
         if (coins[i].active) {
             SDL_Rect heroCollisionRect = {
-                hero->rect.x + 25, hero->rect.y + 25,
-                hero->rect.w - 50, hero->rect.h - 50 // 300x300 -> 250x250
+                hero->rect.x + 10, hero->rect.y + 10,
+                HERO_WIDTH - 20, HERO_HEIGHT - 20 // Reduced collision box for better gameplay
             };
             if (RectIntersect(heroCollisionRect, coins[i].rect)) {
                 printf("DEBUG: Pièce %d collectée\n", i);
