@@ -26,40 +26,69 @@ int main(void) {
         printf("ERREUR: Initialisation SDL/TTF\n");
         return 1;
     }
-    SDL_Surface *screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_SWSURFACE);
+    SDL_Surface *screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 32, SDL_HWSURFACE | SDL_DOUBLEBUF);
     if (!screen) {
         printf("ERREUR: SDL_SetVideoMode\n");
         return 1;
     }
 
-    // Charger les bannières
-    SDL_Surface* winBanner = IMG_Load("assets/ui/win.png");
-    SDL_Surface* loseBanner = IMG_Load("assets/ui/lose.png");
-    if (!winBanner || !loseBanner) {
-        printf("Erreur lors du chargement des bannières : %s\n", IMG_GetError());
-        // Créer des bannières par défaut si les images ne sont pas trouvées
-        winBanner = SDL_CreateRGBSurface(0, 800, 200, 32, 0, 0, 0, 0);
-        loseBanner = SDL_CreateRGBSurface(0, 800, 200, 32, 0, 0, 0, 0);
-        SDL_FillRect(winBanner, NULL, SDL_MapRGB(winBanner->format, 0, 255, 0));
-        SDL_FillRect(loseBanner, NULL, SDL_MapRGB(loseBanner->format, 255, 0, 0));
+    // Charger le fond d'écran
+    SDL_Surface* bg = IMG_Load("assets/bg.jpg");
+    SDL_Surface* bg2 = IMG_Load("assets/back2.jpeg");
+    if (!bg || !bg2) {
+        printf("Erreur de chargement du fond d'écran: %s\n", IMG_GetError());
+        return -1;
     }
-
-    SDL_Surface *bg = IMG_Load("assets/bg.jpg");
-    TTF_Font *font = TTF_OpenFont("assets/arial.ttf", 24);
-    if (!bg || !font) {
-        printf("ERREUR: Chargement bg.jpg ou arial.ttf\n");
+    TTF_Font *font = TTF_OpenFont("assets/arial.ttf", 20); // Increased font size for banners
+    if (!font) {
+        printf("ERREUR: Chargement arial.ttf\n");
         SDL_Quit();
         TTF_Quit();
         return 1;
     }
 
+    // Créer les bannières avec une taille plus grande
+    SDL_Surface* winBanner = SDL_CreateRGBSurface(SDL_HWSURFACE | SDL_SRCALPHA, 800, 200, 32, 0, 0, 0, 0);
+    SDL_Surface* loseBanner = SDL_CreateRGBSurface(SDL_HWSURFACE | SDL_SRCALPHA, 800, 200, 32, 0, 0, 0, 0);
+    
+    // Remplir les bannières avec des couleurs semi-transparentes
+    SDL_FillRect(winBanner, NULL, SDL_MapRGBA(winBanner->format, 0, 255, 0, 192));
+    SDL_FillRect(loseBanner, NULL, SDL_MapRGBA(loseBanner->format, 255, 0, 0, 192));
+
+    // Ajouter du texte aux bannières
+    SDL_Color textColor = {255, 255, 255, 255}; // Blanc
+    SDL_Surface* winText = TTF_RenderText_Blended(font, "VICTOIRE!", textColor);
+    SDL_Surface* loseText = TTF_RenderText_Blended(font, "DEFAITE!", textColor);
+    
+    if (winText && loseText) {
+        SDL_Rect winTextRect = {
+            (winBanner->w - winText->w) / 2,
+            (winBanner->h - winText->h) / 2,
+            winText->w,
+            winText->h
+        };
+        SDL_Rect loseTextRect = {
+            (loseBanner->w - loseText->w) / 2,
+            (loseBanner->h - loseText->h) / 2,
+            loseText->w,
+            loseText->h
+        };
+        
+        SDL_BlitSurface(winText, NULL, winBanner, &winTextRect);
+        SDL_BlitSurface(loseText, NULL, loseBanner, &loseTextRect);
+        
+        SDL_FreeSurface(winText);
+        SDL_FreeSurface(loseText);
+    }
+
     Hero hero;
+    int level = 1; // Ajout d'une variable pour suivre le niveau actuel
     InitHero(&hero, 100);
 
     Enemy2 enemies[MAX_ENEMIES];
     int eFramesPerState[] = {10, 10, 10, 10, 10};
-    InitEnemy2(&enemies[0], "assets/enemy1.png", 300, 300, eFramesPerState, 5, 1600, 0, 1.0f, 0, SCREEN_WIDTH, 4.0f, 100.0f, 50.0f, 150.0f);
-    InitEnemy2(&enemies[1], "assets/enemy2.png", 300, 300, eFramesPerState, 5, 1400, 1, 1.0f, 0, SCREEN_WIDTH, 4.0f, 100.0f, 50.0f, 150.0f);
+    InitEnemy2(&enemies[0], "assets/enemy1.png", 300, 300, eFramesPerState, 5, 3200, 0, 1.0f, 0, SCREEN_WIDTH, 4.0f, 100.0f, 50.0f, 150.0f);
+    InitEnemy2(&enemies[1], "assets/enemy2.png", 300, 300, eFramesPerState, 5, 2800, 1, 1.0f, 0, SCREEN_WIDTH, 4.0f, 100.0f, 50.0f, 150.0f);
     enemies[1].active = 0;
 
     CollisionEffect collisionEffect;
@@ -85,6 +114,7 @@ int main(void) {
 
     int running = 1;
     int gameOver = 0; // 0: en cours, 1: perdu, 2: gagné
+    Uint32 gameOverStartTime = 0;
     while (running) {
         Uint32 frameStart = SDL_GetTicks();
 
@@ -107,7 +137,10 @@ int main(void) {
 
             // Vérifier si le héros est mort
             if (hero.health <= 0) {
+                hero.health = 0; // Ensure health doesn't go below 0
+                hero.state = HERO_DEATH;
                 gameOver = 1; // Défaite
+                gameOverStartTime = SDL_GetTicks();
             }
             
             // Vérifier l'état des ennemis
@@ -116,26 +149,23 @@ int main(void) {
             
             // Si le premier ennemi est mort et le deuxième n'est pas encore actif
             if (firstEnemyDead && !enemies[1].active) {
-                // Activer le deuxième ennemi
+                // Passer au niveau 2
+                level = 2;
+                
+                // Libérer les anciens sprites du héros avant de le réinitialiser
+                FreeHero(&hero);
+                
+                // Réinitialiser le héros avec les nouveaux sprites
+                InitHero(&hero, 2); // 2 indique d'utiliser les sprites du héros 2
+                
+                // Activer l'ennemi 2
                 enemies[1].active = 1;
-                enemies[1].state = ENEMY2_IDLE;
-                enemies[1].health = 2000; // Santé doublée pour le deuxième ennemi
-                enemies[1].maxHealth = 2000;
-                enemies[1].rank = 2; // Rang 2
-                enemies[1].rect.x = 1042;
-                enemies[1].rect.y = 460;
-                enemies[1].rect.w = 180;
-                enemies[1].rect.h = 180;
-                enemies[1].direction = 1;
-                enemies[1].currentFrame = 0;
-                enemies[1].frameTimer = SDL_GetTicks();
-                enemies[1].hurtStartTime = 0;
-                enemies[1].animationPlaying = 0;
             }
             
             // Si les deux ennemis sont morts, victoire
             if (firstEnemyDead && secondEnemyDead) {
                 gameOver = 2; // Victoire
+                gameOverStartTime = SDL_GetTicks();
             }
 
             Uint32 now = SDL_GetTicks();
@@ -159,7 +189,8 @@ int main(void) {
             UpdateCollisionEffect(&collisionEffect);
         }
 
-        SDL_BlitSurface(bg, NULL, screen, NULL);
+        // Afficher le fond d'écran approprié
+        SDL_BlitSurface((level == 2) ? bg2 : bg, NULL, screen, NULL);
         RenderHero(screen, &hero);
         for (int i = 0; i < MAX_ENEMIES; i++) {
             if (enemies[i].active) {
@@ -189,7 +220,6 @@ int main(void) {
             // Afficher le rang de l'ennemi
             char rankText[32];
             snprintf(rankText, sizeof(rankText), "RANG %d", enemies[activeEnemyIndex].rank);
-            SDL_Color textColor = {255, 255, 255, 255}; // Blanc
             SDL_Surface* textSurface = TTF_RenderText_Blended(font, rankText, textColor);
             if (textSurface) {
                 SDL_Rect textRect = {
@@ -207,44 +237,70 @@ int main(void) {
 
         // Afficher la bannière appropriée si le jeu est terminé
         if (gameOver) {
-            SDL_Surface* banner = (gameOver == 2) ? winBanner : loseBanner;
-            SDL_Rect bannerRect = {
-                SCREEN_WIDTH / 2 - banner->w / 2,
-                SCREEN_HEIGHT / 2 - banner->h / 2,
-                banner->w,
-                banner->h
+            // Créer une surface semi-transparente pour l'overlay
+            SDL_Surface* overlay = SDL_CreateRGBSurface(SDL_HWSURFACE | SDL_SRCALPHA, 
+                                                      SCREEN_WIDTH, SCREEN_HEIGHT, 32, 
+                                                      0, 0, 0, 0);
+            SDL_FillRect(overlay, NULL, SDL_MapRGBA(overlay->format, 0, 0, 0, 128));
+            
+            // Afficher l'overlay
+            SDL_BlitSurface(overlay, NULL, screen, NULL);
+            SDL_FreeSurface(overlay);
+            
+            // Afficher la bannière appropriée
+            SDL_Surface* currentBanner = (gameOver == 2) ? winBanner : loseBanner;
+            SDL_Rect bannerPos = {
+                (SCREEN_WIDTH - currentBanner->w) / 2,
+                (SCREEN_HEIGHT - currentBanner->h) / 2,
+                currentBanner->w,
+                currentBanner->h
             };
-            SDL_BlitSurface(banner, NULL, screen, &bannerRect);
-            SDL_Flip(screen);
-            SDL_Delay(3000); // Afficher la bannière pendant 3 secondes
-            break; // Quitter la boucle principale
+            SDL_BlitSurface(currentBanner, NULL, screen, &bannerPos);
+
+            // Vérifier si 3 secondes se sont écoulées
+            if (SDL_GetTicks() - gameOverStartTime >= 3000) {
+                running = 0;
+            }
         }
 
         SDL_Flip(screen);
 
+        // Limiter le framerate à environ 60 FPS
         Uint32 frameTime = SDL_GetTicks() - frameStart;
-        if (frameTime < FRAME_TIME) SDL_Delay(FRAME_TIME - frameTime);
+        if (frameTime < 16) {  // 1000ms/60fps ≈ 16.67ms
+            SDL_Delay(16 - frameTime);
+        }
     }
 
-    FreeHero(&hero);
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-        FreeEnemy2(&enemies[i]);
-    }
-    FreeCollisionEffect(&collisionEffect);
-    for (int i = 0; i < MAX_COINS; i++) {
-        FreeCoin(&coins[i]);
-    }
-    FreeMoney(&money);
+    // Nettoyage
+    SDL_FreeSurface(winBanner);
+    SDL_FreeSurface(loseBanner);
+    SDL_FreeSurface(bg);
+    SDL_FreeSurface(bg2);
+    TTF_CloseFont(font);
+    
+    // Libérer les ressources des UI
     FreeUI(&heroUI);
     FreeUI(&enemy1UI);
     FreeUI(&enemy2UI);
+    
+    // Libérer les ressources du héros et des ennemis
+    FreeHero(&hero);
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (enemies[i].active) {
+            FreeEnemy2(&enemies[i]);
+        }
+    }
+    
+    // Libérer les ressources des pièces
+    for (int i = 0; i < MAX_COINS; i++) {
+        if (coins[i].active) {
+            FreeCoin(&coins[i]);
+        }
+    }
 
-    TTF_CloseFont(font);
-    SDL_FreeSurface(bg);
-    SDL_FreeSurface(screen);
-    SDL_FreeSurface(winBanner);
-    SDL_FreeSurface(loseBanner);
     TTF_Quit();
     SDL_Quit();
     return 0;
 }
+

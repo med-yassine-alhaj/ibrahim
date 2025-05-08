@@ -235,18 +235,36 @@ void FreeEnemy2(Enemy2 *e) {
         printf("ERREUR: Pointeur Enemy2 NULL dans FreeEnemy2\n");
         return;
     }
+    
     if (e->animations) {
+        // Libérer la feuille de sprites une seule fois car elle est partagée
         if (e->animations[0].spriteSheet) {
             SDL_FreeSurface(e->animations[0].spriteSheet);
             e->animations[0].spriteSheet = NULL;
+            // Marquer les autres pointeurs de spriteSheet comme NULL car ils pointent vers la même surface
+            for (int i = 1; i < e->numStates; i++) {
+                e->animations[i].spriteSheet = NULL;
+            }
         }
+        
+        // Libérer les frames de chaque animation
         for (int i = 0; i < e->numStates; i++) {
             if (e->animations[i].frames) {
                 free(e->animations[i].frames);
                 e->animations[i].frames = NULL;
             }
         }
+        
+        // Libérer le tableau d'animations
         free(e->animations);
         e->animations = NULL;
     }
+    
+    // Réinitialiser les autres valeurs
+    e->health = 0;
+    e->maxHealth = 0;
+    e->active = 0;
+    e->state = ENEMY2_IDLE;
+    e->currentFrame = 0;
+    e->animationPlaying = 0;
 }

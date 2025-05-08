@@ -9,7 +9,7 @@
 #define INVINCIBILITY_DURATION 2000 // 2 secondes d'invincibilité après un coup
 #define HERO_WIDTH 100
 #define HERO_HEIGHT 100
-#define BASE_ENEMY_DAMAGE 100 // Dégâts de base pour un ennemi de rang 1 (augmenté de 50 à 100)
+#define BASE_ENEMY_DAMAGE 50 // Réduit de 100 à 50 pour les dégâts de base des ennemis
 
 extern int activeCoins;
 
@@ -126,7 +126,7 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
                 printf("DEBUG: Collision détectée entre héros et ennemi %d\n", i);
                 if (hero->isAttacking && hero->state == HERO_ATTACK) {
                     // Augmenter les dégâts de base
-                    int damage = hero->attackDamage * 4; // Quadrupler les dégâts de base
+                    int damage = hero->attackDamage * 2; // Réduit de 4 à 2 pour le multiplicateur de dégâts du héros
                     enemies[i].health -= damage;
                     printf("DEBUG: Ennemi %d touché, dégâts = %d, santé = %d\n", i, damage, enemies[i].health);
                     if (enemies[i].health <= 0) {
@@ -147,6 +147,11 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
                     effect->frameTimer = now;
                 }
                 else if (enemies[i].state == ENEMY2_ATTACK && now - hero->lastHitTime >= INVINCIBILITY_DURATION) {
+                    // Don't apply damage if hero is already dead
+                    if (hero->state == HERO_DEATH) {
+                        continue;
+                    }
+                    
                     // Calculer les dégâts en fonction du rang de l'ennemi
                     int damage = BASE_ENEMY_DAMAGE * enemies[i].rank;
                     hero->health -= damage;
@@ -154,6 +159,7 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
                     printf("DEBUG: Héros touché par ennemi rang %d, dégâts = %d, santé = %d\n", 
                            enemies[i].rank, damage, hero->health);
                     if (hero->health <= 0) {
+                        hero->health = 0;
                         hero->state = HERO_DEATH;
                         hero->frame = 0;
                     } else if (hero->state != HERO_HIT) {
