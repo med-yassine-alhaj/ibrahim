@@ -9,7 +9,7 @@
 #define INVINCIBILITY_DURATION 2000 // 2 secondes d'invincibilité après un coup
 #define HERO_WIDTH 100
 #define HERO_HEIGHT 100
-#define BASE_ENEMY_DAMAGE 5 // Dégâts de base pour un ennemi de rang 1
+#define BASE_ENEMY_DAMAGE 100 // Dégâts de base pour un ennemi de rang 1 (augmenté de 50 à 100)
 
 extern int activeCoins;
 
