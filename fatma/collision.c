@@ -125,13 +125,10 @@ void CheckCollisions(Hero *hero, Enemy2 *enemies, int numEnemies, CollisionEffec
             if (RectIntersect(heroCollisionRect, enemyCollisionRect)) {
                 printf("DEBUG: Collision détectée entre héros et ennemi %d\n", i);
                 if (hero->isAttacking && hero->state == HERO_ATTACK) {
-                    // Réduire les dégâts en fonction du rang de l'ennemi
-                    int damage = hero->attackDamage;
-                    if (enemies[i].rank == 2) {
-                        damage = damage / 2; // Le deuxième ennemi prend la moitié des dégâts
-                    }
+                    // Augmenter les dégâts de base
+                    int damage = hero->attackDamage * 4; // Quadrupler les dégâts de base
                     enemies[i].health -= damage;
-                    printf("DEBUG: Ennemi %d touché, santé = %d\n", i, enemies[i].health);
+                    printf("DEBUG: Ennemi %d touché, dégâts = %d, santé = %d\n", i, damage, enemies[i].health);
                     if (enemies[i].health <= 0) {
                         enemies[i].state = ENEMY2_DEATH;
                         enemies[i].animationPlaying = 1;
